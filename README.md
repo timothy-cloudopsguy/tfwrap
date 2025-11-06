@@ -1,25 +1,25 @@
-# tfwrapper
+# tfwrap
 
 A CLI tool for managing Terraform remote backends and bootstrapping infrastructure with AWS S3 state storage.
 
 
-[![PyPI version](https://badge.fury.io/py/tfwrapper.svg)](https://pypi.org/project/tfwrapper/)
-![Python versions](https://img.shields.io/pypi/pyversions/tfwrapper)
-![License](https://img.shields.io/github/license/yourusername/tfwrapper)
+[![PyPI version](https://badge.fury.io/py/tfwrap.svg)](https://pypi.org/project/tfwrap/)
+![Python versions](https://img.shields.io/pypi/pyversions/tfwrap)
+![License](https://img.shields.io/github/license/timothy-cloudopsguy/tfwrap)
 
 ## Installation
 
 ### From PyPI
 
 ```bash
-pip install tfwrapper
+pip install tfwrap
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/yourusername/tfwrapper.git
-cd tfwrapper
+git clone https://github.com/timothy-cloudopsguy/tfwrap.git
+cd tfwrap
 pip install .
 ```
 
@@ -27,29 +27,29 @@ pip install .
 
 ## Quickstart
 
-`tfwrapper` provides a CLI to bootstrap and manage Terraform backends. It supports `bootstrap`, `init`, `plan`, `apply`, `destroy`, `destroy-all`, and `clean` commands and accepts an environment selection either via the `ENV` environment variable or the `-e` / `--env` flag.
+`tfwrap` provides a CLI to bootstrap and manage Terraform backends. It supports `bootstrap`, `init`, `plan`, `apply`, `destroy`, `destroy-all`, and `clean` commands and accepts an environment selection either via the `ENV` environment variable or the `-e` / `--env` flag.
 
 ### Important behavior to know up-front:
-- `tfwrapper` is idempotent: it will check for an SSM Parameter containing backend metadata before bootstrapping resources. If the SSM parameter exists, the script uses it; otherwise it runs the bootstrap and writes the backend metadata to SSM for future runs.
+- `tfwrap` is idempotent: it will check for an SSM Parameter containing backend metadata before bootstrapping resources. If the SSM parameter exists, the script uses it; otherwise it runs the bootstrap and writes the backend metadata to SSM for future runs.
 - The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.json` file to load.
 
 ### Usage examples:
 
 ```bash
 # One-off invocation using environment variable (no export)
-ENV=dev tfwrapper plan
+ENV=dev tfwrap plan
 
 # One-off invocation using the -e flag
-tfwrapper -e dev plan
+tfwrap -e dev plan
 
 # Or export then run multiple commands
 export ENV=prod
-tfwrapper plan
-tfwrapper apply
+tfwrap plan
+tfwrap apply
 ```
 
 # Note
-- The chosen environment must match one of the `properties.<ENV>.json` files in the repo (e.g. `dev`, `prod`). `tfwrapper` will fail if it cannot find the matching properties file and `--app-name` is not provided.
+- The chosen environment must match one of the `properties.<ENV>.json` files in the repo (e.g. `dev`, `prod`). `tfwrap` will fail if it cannot find the matching properties file and `--app-name` is not provided.
 
 Stacks in this example
 - This repo now contains two logical stacks:
@@ -59,15 +59,15 @@ Stacks in this example
 Ordering and dependencies
 - Ordering matters: create and apply the **core** stack before the **frontend** stack. The frontend demonstrates how to consume a value (an SSL certificate ARN) that the core stack publishes into SSM. While the frontend does not itself provision the cert in this example, it expects the cert value to exist in SSM so it can be referenced (this models a real-world pattern where core teams provide common infrastructure and certs).
 - Typical flow:
-  1. Run `tfwrapper bootstrap` / `tfwrapper apply` for the `core` stack to ensure backend, KVS, CloudFront Function, and SSM values exist.
-  2. Run `tfwrapper` for the `frontend` stack (plan/apply) once `core` is present.
+  1. Run `tfwrap bootstrap` / `tfwrap apply` for the `core` stack to ensure backend, KVS, CloudFront Function, and SSM values exist.
+  2. Run `tfwrap` for the `frontend` stack (plan/apply) once `core` is present.
 
 Why this repo exists
 - **Safe, isolated Terraform state**: The bootstrap creates an S3 bucket scoped to this repository/stack and uses S3 for both state storage and locking so the remote backend is coupled to this repo only (not a shared/global bucket). That reduces blast radius if state becomes corrupted. This is a much simpler solution.
 - **Example blue/green frontend**: The Terraform code shows a blue/green deployment pattern for a static/frontend application served via CloudFront and S3.
 
 How the bootstrap works (high level)
-- Run `./tfwrapper` from the repo root. The script:
+- Run `./tfwrap` from the repo root. The script:
   - Reads the `ENV` environment variable or `-e/--env` flag to determine which `properties.<ENV>.json` file to use; the bootstrap step uses the same environment selection so the same environment/region/account locking applies during bootstrap.
   - Runs a small bootstrap Terraform workspace (in `bootstrap/`) that creates an S3 bucket used for Terraform remote state and locking.
   - Migrates local state into that newly-created S3 backend and then runs the normal plan/apply flow for the example stack.
@@ -76,11 +76,11 @@ How the bootstrap works (high level)
 Environment properties (`properties.<ENV>.json`)
 - This repo includes `properties.dev.json`, `properties.prod.json` (and the Terraform code reads `properties.${var.environment}.json`). These files lock a deployment to a specific environment, region, and account by providing the canonical properties the stack uses at plan/apply time.
 - Why they exist:
-  - They capture environment-specific inputs (for example, `app_name`, region-specific settings, or deploy-time flags) in a single JSON file that Terraform and `tfwrapper` read.
+  - They capture environment-specific inputs (for example, `app_name`, region-specific settings, or deploy-time flags) in a single JSON file that Terraform and `tfwrap` read.
   - They allow running the exact same stack multiple times in the same account (e.g., two separate deployments of the same application) by giving each deployment its own properties file and therefore its own derived names and backend keys.
 - How to use them:
   - Pass the environment to Terraform (the repository's `variables.tf` expects an `environment` variable that maps to `properties.<env>.json`).
-  - `tfwrapper` reads `properties.${ENV}.json` (via `ENV` or `-e/--env`) to synthesize `APP_NAME` and other defaults if not explicitly supplied.
+  - `tfwrap` reads `properties.${ENV}.json` (via `ENV` or `-e/--env`) to synthesize `APP_NAME` and other defaults if not explicitly supplied.
 
 Per-repo backend vs a global backend (and CloudFormation comparison)
 - **Per-repo backend (this repo)**
@@ -93,8 +93,8 @@ Per-repo backend vs a global backend (and CloudFormation comparison)
   - CloudFormation manages state for you inside AWS (no separate state bucket). That simplifies things operationally but means you are relying on the service’s control plane; it’s harder to get the same per-stack storage isolation semantics for non-CloudFormation tooling. The per-repo Terraform backend gives you explicit control over state isolation similar to how CloudFormation scopes stacks — but with Terraform you choose where that state lives.
 
 Idempotent bootstrap & SSM-stored backend metadata
-- `tfwrapper` is written to be idempotent: it checks for existing backend configuration and the SSM parameter the bootstrap creates before attempting to create backend resources.
-- The bootstrap step will create an SSM Parameter that stores the backend content (the backend HCL or equivalent metadata). On subsequent runs `tfwrapper` will read that SSM parameter and reuse the stored backend configuration instead of re-bootstrapping.
+- `tfwrap` is written to be idempotent: it checks for existing backend configuration and the SSM parameter the bootstrap creates before attempting to create backend resources.
+- The bootstrap step will create an SSM Parameter that stores the backend content (the backend HCL or equivalent metadata). On subsequent runs `tfwrap` will read that SSM parameter and reuse the stored backend configuration instead of re-bootstrapping.
   - If the SSM parameter exists and contains valid backend information, the script uses it directly.
   - If the SSM parameter does not exist (first run or intentionally removed), the script runs the bootstrap Terraform under `bootstrap/`, creates the S3 bucket, and then writes the backend content into the SSM parameter for future runs.
 - This pattern provides a safe, repeatable bootstrap that avoids recreating or clobbering backend resources once they exist, and makes the script safe to re-run in CI/CD or local workflows.
@@ -110,7 +110,7 @@ Blue/green example notes
   - A top-level CloudFront + Route53 setup that uses TXT records or other control-plane signals to act as a decision tree (the top-level CloudFront performs routing decisions but does not perform caching for this purpose).
 
 Notes & caveats
-- `tfwrapper` contains helpful logic around creating a minimal `backend.tf` and migrating state; read the script if you need to adjust naming, region, or table names (there is an override for the S3 locking configuration if required).
+- `tfwrap` contains helpful logic around creating a minimal `backend.tf` and migrating state; read the script if you need to adjust naming, region, or table names (there is an override for the S3 locking configuration if required).
 - The bootstrap creates and/or reuses an SSM Parameter containing backend metadata — the script checks this parameter on each run so the bootstrap is safe to run repeatedly.
 - If you need cross-stack references, prefer SSM Parameter Store or explicit exported values rather than directly coupling into another stack's state file.
 

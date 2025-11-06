@@ -5,4 +5,5 @@ backend.tf
 terraform.tfstate
 
 *.pyc
-
+dist/
+*.egg-info/

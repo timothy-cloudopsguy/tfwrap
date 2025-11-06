@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Setup script for tfwrapper."""
+"""Setup script for tfwrap."""
 
 from setuptools import setup
 

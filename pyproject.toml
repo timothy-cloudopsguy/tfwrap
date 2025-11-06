@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tfwrapper"
+name = "tfwrap"
 version = "1.0.0"
 description = "A CLI tool for managing Terraform remote backends and bootstrapping infrastructure"
 readme = "README.md"
@@ -31,12 +31,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/timothy-cloudopsguy/tfwrapper"
-Repository = "https://github.com/timothy-cloudopsguy/tfwrapper"
-Issues = "https://github.com/timothy-cloudopsguy/tfwrapper/issues"
+Homepage = "https://github.com/timothy-cloudopsguy/tfwrap"
+Repository = "https://github.com/timothy-cloudopsguy/tfwrap"
+Issues = "https://github.com/timothy-cloudopsguy/tfwrap/issues"
 
 [project.scripts]
-tfwrapper = "tfwrapper.main:cli_main"
+tfwrap = "tfwrap.main:cli_main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

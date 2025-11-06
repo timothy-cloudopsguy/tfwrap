@@ -1,51 +1,28 @@
-# tfwrapper
+# terraform-bootstrap-example
 
-A CLI tool for managing Terraform remote backends and bootstrapping infrastructure with AWS S3 state storage.
-
-
-[![PyPI version](https://badge.fury.io/py/tfwrapper.svg)](https://pypi.org/project/tfwrapper/)
-![Python versions](https://img.shields.io/pypi/pyversions/tfwrapper)
-![License](https://img.shields.io/github/license/yourusername/tfwrapper)
-
-## Installation
-
-### From PyPI
-
-```bash
-pip install tfwrapper
-```
-
-### From source
-
-```bash
-git clone https://github.com/yourusername/tfwrapper.git
-cd tfwrapper
-pip install .
-```
+This repository is an opinionated example showing how to bootstrap Terraform state and deploy a blue/green frontend behind CloudFront using a per-repository S3 backend (S3 is used for both state and locking). The included `tfwrapper` script automates the bootstrapping, state migration, and common `terraform` workflows so you can initialize and apply the example infrastructure quickly.
 
 ![demo recording](./render1757429656886.gif)
 
-## Quickstart
+Quickstart & usage (tfwrapper)
+- `tfwrapper` provides a small CLI to bootstrap and manage Terraform for this repo. It supports `bootstrap`, `init`, `plan`, and `apply` commands and accepts an environment selection either via the `ENV` environment variable or the `-e` / `--env` flag.
+- Important behavior to know up-front:
+  - `tfwrapper` is idempotent: it will check for an SSM Parameter containing backend metadata before bootstrapping resources. If the SSM parameter exists, the script uses it; otherwise it runs the bootstrap and writes the backend metadata to SSM for future runs.
+  - The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.json` file to load.
 
-`tfwrapper` provides a CLI to bootstrap and manage Terraform backends. It supports `bootstrap`, `init`, `plan`, `apply`, `destroy`, `destroy-all`, and `clean` commands and accepts an environment selection either via the `ENV` environment variable or the `-e` / `--env` flag.
-
-### Important behavior to know up-front:
-- `tfwrapper` is idempotent: it will check for an SSM Parameter containing backend metadata before bootstrapping resources. If the SSM parameter exists, the script uses it; otherwise it runs the bootstrap and writes the backend metadata to SSM for future runs.
-- The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.json` file to load.
-
-### Usage examples:
+Usage examples:
 
 ```bash
 # One-off invocation using environment variable (no export)
-ENV=dev tfwrapper plan
+ENV=dev ./tfwrapper plan
 
 # One-off invocation using the -e flag
-tfwrapper -e dev plan
+./tfwrapper -e dev plan
 
 # Or export then run multiple commands
 export ENV=prod
-tfwrapper plan
-tfwrapper apply
+./tfwrapper plan
+./tfwrapper apply
 ```
 
 # Note

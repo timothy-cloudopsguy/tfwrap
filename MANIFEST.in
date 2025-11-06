@@ -1,0 +1,7 @@
+include LICENSE
+include README.md
+include requirements.txt
+recursive-include tfwrapper *.tf
+recursive-include tfwrapper *.json
+recursive-include tfwrapper *.md
+recursive-include tfwrapper *.sh

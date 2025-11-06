@@ -1,5 +1,8 @@
-# Terraform ignore
-.terraform*
-terraform.tfstate*
-backend.*
+# Terraform state files
+.terraform/
+.terraform.lock.hcl
+backend.tf
+terraform.tfstate
+
+*.pyc
 

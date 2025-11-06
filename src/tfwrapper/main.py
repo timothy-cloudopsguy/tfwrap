@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse
 import json
 import logging
@@ -18,7 +17,7 @@ except Exception:
 
 # Configuration defaults (mirror the bash defaults)
 ENV = os.environ.get('ENV', '')
-REGION = os.environ.get('AWS_REGION', 'us-east-1')
+REGION = os.environ.get('AWS_REGION', os.environ.get('AWS_DEFAULT_REGION', 'us-east-1'))
 BUCKET_OVERRIDE = ''
 TARGET_DIR = os.environ.get('TARGET_DIR', '.')
 FORCE_COPY = False
@@ -85,6 +84,7 @@ class TfWrapper:
       if boto3 is None:
         err('boto3 is required for STS operations; please install boto3')
         sys.exit(2)
+      print(f'sts: {self.region}')
       self._sts = boto3.client('sts', region_name=self.region)
     return self._sts
 
@@ -353,9 +353,44 @@ class TfWrapper:
 
     log('Bootstrap resources destroyed. If bucket deletion failed, empty and delete the S3 bucket manually.')
 
+  def clean_terraform_files(self):
+    log('clean_terraform_files: BEGIN')
+    log('Cleaning Terraform files and directories from %s', self.target_dir)
+
+    # Patterns to remove
+    dirs_to_remove = ['.terraform']
+    files_to_remove = ['.terraform.lock.hcl', 'backend.tf', 'terraform.tfstate', 'terraform.tfstate.backup']
+
+    removed_count = 0
+
+    for root, dirs, files in os.walk(self.target_dir, topdown=False):
+      # Remove matching directories
+      for dirname in dirs:
+        if dirname in dirs_to_remove:
+          dir_path = os.path.join(root, dirname)
+          try:
+            shutil.rmtree(dir_path)
+            log('Removed directory: %s', dir_path)
+            removed_count += 1
+          except Exception as e:
+            err('Failed to remove directory %s: %s', dir_path, e)
+
+      # Remove matching files
+      for filename in files:
+        if filename in files_to_remove:
+          file_path = os.path.join(root, filename)
+          try:
+            os.remove(file_path)
+            log('Removed file: %s', file_path)
+            removed_count += 1
+          except Exception as e:
+            err('Failed to remove file %s: %s', file_path, e)
+
+    log('Clean completed. Removed %d items.', removed_count)
+
 
 def parse_args(argv):
-  cmds = ['bootstrap', 'init', 'plan', 'apply', 'destroy', 'destroy-all']
+  cmds = ['bootstrap', 'init', 'plan', 'apply', 'destroy', 'destroy-all', 'clean']
 
   parser = argparse.ArgumentParser(prog='tfwrapper')
   parser.add_argument('command', nargs='?', choices=cmds, help='Command to run')
@@ -434,6 +469,11 @@ def main(argv):
       wrapper.delete_bootstrap_stack()
     else:
       log('Aborted destroy-all.')
+  elif command == 'clean':
+    if confirm_prompt(f"Clean Terraform files and directories from {wrapper.target_dir}? This will remove .terraform folders, .terraform.lock.hcl, backend.tf, and terraform.state files."):
+      wrapper.clean_terraform_files()
+    else:
+      log('Aborted clean.')
   else:
     print('Unknown command')
     sys.exit(1)
@@ -441,5 +481,18 @@ def main(argv):
   log('Done.')
 
 
+def cli_main():
+    """Entry point for command line interface."""
+    try:
+        main(sys.argv[1:])
+    except SystemExit as e:
+        sys.exit(e.code)
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except Exception as e:
+        err(f"Unexpected error: {e}")
+        sys.exit(1)
+
+
 if __name__ == '__main__':
-  main(sys.argv[1:]) 
+    cli_main() 

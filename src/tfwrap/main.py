@@ -49,7 +49,7 @@ def confirm_prompt(prompt):
   return resp.lower().startswith('y')
 
 
-class TfWrapper:
+class TfWrap:
   def __init__(self, env, region, target_dir):
     self.env = env or 'dev'
     self.region = region
@@ -392,7 +392,7 @@ class TfWrapper:
 def parse_args(argv):
   cmds = ['bootstrap', 'init', 'plan', 'apply', 'destroy', 'destroy-all', 'clean']
 
-  parser = argparse.ArgumentParser(prog='tfwrapper')
+  parser = argparse.ArgumentParser(prog='tfwrap')
   parser.add_argument('command', nargs='?', choices=cmds, help='Command to run')
   parser.add_argument('-e', '--env', default=ENV)
   parser.add_argument('-r', '--region', default=REGION)
@@ -414,7 +414,7 @@ def main(argv):
   global FORCE_COPY, APP_NAME_OVERRIDE, FORCE_DELETE
 
   command, args = parse_args(argv)
-  wrapper = TfWrapper(env=args.env, region=args.region, target_dir=args.target_dir)
+  wrapper = TfWrap(env=args.env, region=args.region, target_dir=args.target_dir)
   wrapper.force_copy = args.force_copy
   wrapper.app_name_override = args.app_name
   wrapper.force_delete = args.force

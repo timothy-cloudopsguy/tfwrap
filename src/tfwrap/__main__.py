@@ -1,4 +1,4 @@
-"""Main entry point for running tfwrapper as a module."""
+"""Main entry point for running tfwrap as a module."""
 
 from .main import cli_main
 

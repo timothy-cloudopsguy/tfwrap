@@ -1,13 +1,13 @@
 ## What this bootstrap does
 
-This directory contains minimal notes for the *bootstrap* step used by `tfwrapper`. Its goal is to ensure the remote Terraform backend and locking resources exist before running the rest of the infrastructure tooling.
+This directory contains minimal notes for the *bootstrap* step used by `tfwrap`. Its goal is to ensure the remote Terraform backend and locking resources exist before running the rest of the infrastructure tooling.
 
 - **Primary purpose**: create and configure a remote state backend S3 bucket for state and state lock, the current version does not use KMS keys.
-- **When to use**: normally `tfwrapper` automates this step. Use the manual instructions below only if `tfwrapper` fails, you need to customize resources, or you prefer to create them yourself.
+- **When to use**: normally `tfwrap` automates this step. Use the manual instructions below only if `tfwrap` fails, you need to customize resources, or you prefer to create them yourself.
 
-## What tfwrapper usually creates
+## What tfwrap usually creates
 
-When working correctly, `tfwrapper` will create or verify the following (examples for an AWS-based backend):
+When working correctly, `tfwrap` will create or verify the following (examples for an AWS-based backend):
 
 - **S3 bucket** for remote state (with versioning and server-side encryption) and state locking
 - Backend configuration files referencing the above resources
@@ -62,11 +62,11 @@ terraform {
 
 ## When to prefer manual creation
 
-- `tfwrapper` can't access the target account or lacks permissions.
+- `tfwrap` can't access the target account or lacks permissions.
 - You have strict naming/placement policies and must pre-create resources.
 - You want to inspect or harden the resources before allowing automation to manage them.
 
-If you add manual resources, update any `tfwrapper` or CI configuration so it uses the same names/IDs.
+If you add manual resources, update any `tfwrap` or CI configuration so it uses the same names/IDs.
 
 ---
 

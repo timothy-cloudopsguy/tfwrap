@@ -132,7 +132,9 @@ class TfWrap:
       err('Unable to determine AWS account id. Ensure AWS credentials are configured.')
       sys.exit(2)
 
-    self.ssm_param_name = f"/terraform/backend/{self.account_id}-{self.region}-{self.safe_app_name}"
+    self.ssm_param_name = f"/terraform/backend/{self.account_id}-{self.safe_app_name}"
+    if not self.get_ssm_backend(): # If the SSM parameter doesn't exist, use the region-specific name to create it. This is to support version <1.0.7.
+      self.ssm_param_name = f"/terraform/backend/{self.account_id}-{self.region}-{self.safe_app_name}"
 
   def get_ssm_backend(self):
     try:
@@ -429,7 +431,7 @@ variable "tags" {
       except Exception:
         pass
       if not bucket_name:
-        bucket_name = f"{self.account_id}-{self.safe_app_name}-tfstate"
+        bucket_name = f"{self.account_id}-{self.region}-{self.safe_app_name}-tfstate"
 
     backend_content = self.build_backend_content(bucket_name, self.region, self.account_id)
     self.put_ssm_backend(backend_content)
@@ -471,7 +473,7 @@ variable "tags" {
 
     # Extract bucket name from HCL-like content
     m = re.search(r'bucket\s*=\s*"([^"]+)"', ssm_value)
-    bucket_name = m.group(1) if m else f"{self.account_id}-{self.safe_app_name}-tfstate"
+    bucket_name = m.group(1) if m else f"{self.account_id}-{self.region}-{self.safe_app_name}-tfstate"
 
     # Remove SSM param
     self.delete_ssm_backend()

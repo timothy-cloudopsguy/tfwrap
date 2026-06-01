@@ -16,6 +16,7 @@ except Exception:
   boto3 = None
 
 from . import version
+from .plan_html import load_plan_json, write_plan_html_file
 
 # Configuration defaults (mirror the bash defaults)
 ENV = os.environ.get('ENV', '')
@@ -543,9 +544,40 @@ variable "tags" {
 
     log('Clean completed. Removed %d items.', removed_count)
 
+  def capture_terraform_plan_json(self):
+    plan_path = None
+    try:
+      with tempfile.NamedTemporaryFile(delete=False, suffix='.tfplan') as tf:
+        plan_path = tf.name
+      plan_cmd = [
+        'terraform', 'plan', '-input=false', '-out', plan_path,
+        '-var', f'environment={self.env}',
+        '-var', f'region={self.region}',
+      ]
+      log('CMD: %s', ' '.join(plan_cmd))
+      subprocess.run(plan_cmd, cwd=self.target_dir, check=True)
+      show_cmd = ['terraform', 'show', '-json', plan_path]
+      log('CMD: %s', ' '.join(show_cmd))
+      show = subprocess.run(
+        show_cmd, cwd=self.target_dir, capture_output=True, text=True, check=True,
+      )
+      return json.loads(show.stdout)
+    finally:
+      if plan_path and os.path.isfile(plan_path):
+        try:
+          os.unlink(plan_path)
+        except OSError:
+          pass
+
+  def write_plan_html_report(self, output_path, plan_json=None, *, show_noop=False, title=None):
+    plan = plan_json if plan_json is not None else self.capture_terraform_plan_json()
+    report_title = title or f'Terraform Plan — {self.app_name or "stack"} ({self.env})'
+    write_plan_html_file(plan, output_path, show_noop=show_noop, title=report_title)
+    log('Wrote plan HTML report to %s', output_path)
+
 
 def parse_args(argv):
-  cmds = ['bootstrap', 'init', 'plan', 'apply', 'destroy', 'destroy-all', 'clean']
+  cmds = ['bootstrap', 'init', 'plan', 'plan-html', 'apply', 'destroy', 'destroy-all', 'clean']
 
   parser = argparse.ArgumentParser(prog='tfwrap')
   parser.add_argument('command', nargs='?', choices=cmds, help='Command to run')
@@ -555,6 +587,22 @@ def parse_args(argv):
   parser.add_argument('--force-copy', action='store_true')
   parser.add_argument('--app-name', default='')
   parser.add_argument('--force', action='store_true')
+  parser.add_argument(
+    '--html', metavar='PATH',
+    help='With plan: also write a pretty HTML plan report to PATH',
+  )
+  parser.add_argument(
+    '-i', '--input', metavar='JSON',
+    help='With plan-html: existing terraform show -json plan file (skip running plan)',
+  )
+  parser.add_argument(
+    '-o', '--output', metavar='PATH', default='terraform-plan.html',
+    help='With plan-html: HTML output path (default: terraform-plan.html)',
+  )
+  parser.add_argument(
+    '--show-noop', action='store_true',
+    help='Include unchanged resources in the HTML report',
+  )
   parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {version.__version__}')
 
   args = parser.parse_args(argv)
@@ -603,7 +651,20 @@ def main(argv):
     wrapper.synthesize_app_name_and_account()
     wrapper.ensure_backend_via_ssm_or_bootstrap()
     wrapper.run_terraform_init_with_backend_file()
-    run_and_log(['terraform', 'plan', '-input=false', '-var', f'environment={wrapper.env}', '-var', f'region={wrapper.region}'], cwd=wrapper.target_dir)
+    if args.html:
+      wrapper.write_plan_html_report(args.html, show_noop=args.show_noop)
+    else:
+      run_and_log(['terraform', 'plan', '-input=false', '-var', f'environment={wrapper.env}', '-var', f'region={wrapper.region}'], cwd=wrapper.target_dir)
+  elif command == 'plan-html':
+    if args.input:
+      plan_json = load_plan_json(args.input)
+      write_plan_html_file(plan_json, args.output, show_noop=args.show_noop)
+      log('Wrote plan HTML report to %s', args.output)
+    else:
+      wrapper.synthesize_app_name_and_account()
+      wrapper.ensure_backend_via_ssm_or_bootstrap()
+      wrapper.run_terraform_init_with_backend_file()
+      wrapper.write_plan_html_report(args.output, show_noop=args.show_noop)
   elif command == 'apply':
     # synthesize
     wrapper.synthesize_app_name_and_account()

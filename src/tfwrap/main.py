@@ -61,6 +61,7 @@ class TfWrap:
     self.force_copy = False
     self.app_name_override = ''
     self.force_delete = False
+    self.force_bootstrap = False
 
     self.app_name = ''
     self.safe_app_name = ''
@@ -398,6 +399,13 @@ variable "tags" {
 
   def run_bootstrap_and_create_ssm(self):
     log('run_bootstrap_and_create_ssm: BEGIN')
+    # Prompt before creating new bootstrap and ssm entry
+    if self.force_bootstrap or confirm_prompt(f"Create new bootstrap and SSM entry for {self.app_name} in {self.target_dir}? This will permanently delete any existing local bootstrap and make a new SSM entry."):
+      log('Creating new bootstrap and SSM entry for %s in %s', self.app_name, self.target_dir)
+    else:
+      log('Aborting bootstrap and SSM entry creation for %s in %s', self.app_name, self.target_dir)
+      sys.exit(0)
+
     candidates = [os.path.join(self.target_dir, 'bootstrap'), 'bootstrap']
     found = None
     for d in candidates:
@@ -626,6 +634,7 @@ def main(argv):
   wrapper.force_copy = args.force_copy
   wrapper.app_name_override = args.app_name
   wrapper.force_delete = args.force
+  wrapper.force_bootstrap = args.force
 
   # Propagate some flags
   wrapper.force_copy = args.force_copy

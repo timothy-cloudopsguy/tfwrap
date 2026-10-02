@@ -15,6 +15,12 @@ A CLI tool for managing Terraform remote backends and bootstrapping infrastructu
 pip install tfwrap
 ```
 
+To use YAML properties files, install the optional extra:
+
+```bash
+pip install 'tfwrap[yaml]'
+```
+
 ### From source
 
 ```bash
@@ -31,7 +37,7 @@ pip install .
 
 ### Important behavior to know up-front:
 - `tfwrap` is idempotent: it will check for an SSM Parameter containing backend metadata before bootstrapping resources. If the SSM parameter exists, the script uses it; otherwise it runs the bootstrap and writes the backend metadata to SSM for future runs.
-- The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.json` file to load.
+- The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.json` / `.yaml` / `.yml` file to load from `--target-dir` (default `.`).
 
 ### Usage examples:
 
@@ -49,7 +55,7 @@ tfwrap apply
 ```
 
 # Note
-- The chosen environment must match one of the `properties.<ENV>.json` files in the repo (e.g. `dev`, `prod`). `tfwrap` will fail if it cannot find the matching properties file and `--app-name` is not provided.
+- The chosen environment must match a `properties.<ENV>.json` (or `.yaml` / `.yml`) file in `--target-dir` (e.g. `dev`, `prod`). `tfwrap` will fail if it cannot find the matching properties file and `--app-name` is not provided.
 
 Stacks in this example
 - This repo now contains two logical stacks:
@@ -68,19 +74,42 @@ Why this repo exists
 
 How the bootstrap works (high level)
 - Run `./tfwrap` from the repo root. The script:
-  - Reads the `ENV` environment variable or `-e/--env` flag to determine which `properties.<ENV>.json` file to use; the bootstrap step uses the same environment selection so the same environment/region/account locking applies during bootstrap.
+  - Reads the `ENV` environment variable or `-e/--env` flag to determine which `properties.<ENV>` file to use; the bootstrap step uses the same environment selection so the same environment/region/account locking applies during bootstrap.
   - Runs a small bootstrap Terraform workspace (in `bootstrap/`) that creates an S3 bucket used for Terraform remote state and locking.
   - Migrates local state into that newly-created S3 backend and then runs the normal plan/apply flow for the example stack.
   - Ensures `backend.tf` is created/managed safely during the migration to avoid accidentally clobbering other backends.
 
-Environment properties (`properties.<ENV>.json`)
-- This repo includes `properties.dev.json`, `properties.prod.json` (and the Terraform code reads `properties.${var.environment}.json`). These files lock a deployment to a specific environment, region, and account by providing the canonical properties the stack uses at plan/apply time.
+Environment properties (`properties.<ENV>.json` / `.yaml` / `.yml`)
+- This repo includes `properties.dev.json`, `properties.prod.json` (and the Terraform code reads `properties.${var.environment}.json`, `.yaml` or `.yml`). These files lock a deployment to a specific environment, region, and account by providing the canonical properties the stack uses at plan/apply time.
 - Why they exist:
-  - They capture environment-specific inputs (for example, `app_name`, region-specific settings, or deploy-time flags) in a single JSON file that Terraform and `tfwrap` read.
+  - They capture environment-specific inputs (for example, `app_name`, region-specific settings, or deploy-time flags) in a single JSON or YAML file that Terraform and `tfwrap` read.
   - They allow running the exact same stack multiple times in the same account (e.g., two separate deployments of the same application) by giving each deployment its own properties file and therefore its own derived names and backend keys.
 - How to use them:
-  - Pass the environment to Terraform (the repository's `variables.tf` expects an `environment` variable that maps to `properties.<env>.json`).
-  - `tfwrap` reads `properties.${ENV}.json` (via `ENV` or `-e/--env`) to synthesize `APP_NAME` and other defaults if not explicitly supplied.
+  - Pass the environment to Terraform (the repository's `variables.tf` expects an `environment` variable that maps to `properties.<env>.<ext>`).
+  - `tfwrap` reads `properties.${ENV}.<ext>` (via `ENV` or `-e/--env`) from `--target-dir` (default `.`) to synthesize `APP_NAME` and other defaults if not explicitly supplied. It never falls back to the current directory. `--app-name` skips the lookup entirely.
+- Formats and precedence:
+  - `.json`, `.yaml` and `.yml` are all accepted. YAML needs PyYAML: `pip install 'tfwrap[yaml]'` (JSON-only users don't need it).
+  - If more than one exists, `tfwrap` and Terraform pick `json` > `yaml` > `yml`; `tfwrap` logs a WARNING naming the file used and the ones ignored.
+  - Fail-fast: if the selected file can't be parsed, is empty, or its top level isn't a mapping, `tfwrap` exits with code 2 and prints the path and parser error. It does not fall back to another file.
+  - Quote YAML strings. Unquoted values like `yes`, `no`, `on` or `0123` are read as booleans or numbers by both tfwrap and Terraform (e.g. `on` becomes `true`, `0123` becomes `123`).
+- Example:
+
+```yaml
+# core/properties.dev.yaml
+app_name: "terraformExampleCore"
+route53:
+  domain_name: "dev.verihire.cc"
+  ttl: 60
+```
+
+```bash
+tfwrap -e dev --target-dir core plan   # reads core/properties.dev.{json,yaml,yml}
+```
+
+Upgrading to 1.0.10
+- The properties file is now read from `--target-dir`, not the current directory. If you pass `--target-dir` and kept `properties.<ENV>.json` only in the current directory, move it into `target_dir` (otherwise `tfwrap` exits with code 2). With the default `--target-dir .` nothing changes.
+- YAML properties files are supported via `pip install 'tfwrap[yaml]'`.
+- Unparsable properties files now fail with exit code 2 instead of silently producing an empty app name.
 
 Per-repo backend vs a global backend (and CloudFormation comparison)
 - **Per-repo backend (this repo)**

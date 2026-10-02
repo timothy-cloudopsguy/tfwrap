@@ -3,6 +3,7 @@
 .terraform.lock.hcl
 backend.tf
 terraform.tfstate
+.opencode/
 
 *.pyc
 dist/

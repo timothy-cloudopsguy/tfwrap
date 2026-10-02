@@ -17,6 +17,7 @@ except Exception:
 
 from . import version
 from .plan_html import load_plan_json, write_plan_html_file
+from .properties import PropertiesError, candidate_paths, find_properties_file, load_properties
 
 # Configuration defaults (mirror the bash defaults)
 ENV = os.environ.get('ENV', '')
@@ -103,22 +104,26 @@ class TfWrap:
 
   def synthesize_app_name_and_account(self):
     log('synthesize_app_name_and_account: BEGIN')
+    props_path = None
     if self.app_name_override:
       self.app_name = self.app_name_override
     else:
-      props_path = f'properties.{self.env}.json'
-      if os.path.isfile(props_path):
-        try:
-          with open(props_path, 'r') as f:
-            props = json.load(f)
-            self.app_name = props.get('app_name', '')
-        except Exception:
-          self.app_name = ''
-      else:
-        self.app_name = ''
+      props_path = find_properties_file(self.env, self.target_dir)
+      if props_path is None:
+        err("No properties file found for env '%s' (looked for %s). Create one or provide --app-name.", self.env, ', '.join(candidate_paths(self.env, self.target_dir)))
+        sys.exit(2)
+      try:
+        props = load_properties(props_path)
+      except PropertiesError as e:
+        err('%s', e)
+        sys.exit(2)
+      self.app_name = props.get('app_name', '')
 
     if not self.app_name:
-      err("Unable to determine app name. Ensure properties.{}.json exists and contains an 'app_name' field, or provide --app-name.".format(self.env))
+      if props_path:
+        err("Unable to determine app name. Ensure %s contains an 'app_name' field, or provide --app-name.", props_path)
+      else:
+        err('Unable to determine app name. Provide a non-empty --app-name.')
       sys.exit(2)
 
     self.safe_app_name = (self.app_name + self.env).lower()
@@ -281,7 +286,9 @@ class TfWrap:
 data "aws_caller_identity" "current" {}
 
 locals {
-  props = jsondecode(file("${path.module}/../properties.${var.environment}.json"))
+  props_base = "${path.module}/../properties.${var.environment}"
+  props_file = fileexists("${local.props_base}.json") ? "${local.props_base}.json" : (fileexists("${local.props_base}.yaml") ? "${local.props_base}.yaml" : "${local.props_base}.yml")
+  props      = endswith(local.props_file, ".json") ? jsondecode(file(local.props_file)) : yamldecode(file(local.props_file))
 
   # Pretty name (OK for DynamoDB, tags, etc.)
   env_title           = title(var.environment)

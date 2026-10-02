@@ -5,7 +5,9 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  props = jsondecode(file("${path.module}/../properties.${var.environment}.json"))
+  props_base = "${path.module}/../properties.${var.environment}"
+  props_file = fileexists("${local.props_base}.json") ? "${local.props_base}.json" : (fileexists("${local.props_base}.yaml") ? "${local.props_base}.yaml" : "${local.props_base}.yml")
+  props      = endswith(local.props_file, ".json") ? jsondecode(file(local.props_file)) : yamldecode(file(local.props_file))
 
   # Pretty name (OK for DynamoDB, tags, etc.)
   env_title           = title(var.environment)

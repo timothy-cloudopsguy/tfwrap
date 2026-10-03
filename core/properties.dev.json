@@ -1,8 +1,0 @@
-{
-    "app_name": "terraformExampleCore",
-    "route53": {
-        "domain_name": "dev.verihire.cc",
-        "ttl": 60
-    }
-}
-

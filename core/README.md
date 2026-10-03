@@ -1,8 +1,8 @@
-This Terraform module mirrors key pieces of the existing CDK stacks under `core/cdk` and is designed to be environment-aware by reading `properties.<env>.json` files.
+This Terraform module mirrors key pieces of the existing CDK stacks under `core/cdk` and is designed to be environment-aware by reading `properties.<env>.(json|yaml|yml)` files.
 
 Usage
 
-- Select an environment by passing `-var "environment=dev"` or `-var "environment=prod"` (defaults to `dev`). The module reads `core/cdk/properties.<env>.json`.
+- Select an environment by passing `-var "environment=dev"` or `-var "environment=prod"` (defaults to `dev`). The module reads `core/properties.<env>.yaml`, and accepts exactly one of `properties.<env>.json`, `properties.<env>.yaml` or `properties.<env>.yml`.
 - Example: `terraform init && terraform plan -var "environment=prod" -var "region=us-east-1"`
 
 Notes and differences from CDK

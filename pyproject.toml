@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tfwrap"
-version = "1.0.9"
+version = "1.0.10"
 description = "A CLI tool for managing Terraform remote backends and bootstrapping infrastructure"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -28,6 +28,7 @@ classifiers = [
 ]
 dependencies = [
     "boto3>=1.17.0",
+    "PyYAML>=5.4",
 ]
 
 [project.urls]

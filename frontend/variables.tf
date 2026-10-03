@@ -1,5 +1,5 @@
 variable "environment" {
-  description = "Environment to deploy (matches properties.<env>.json)"
+  description = "Environment to deploy (matches properties.<env>.(json|yaml|yml))"
   type        = string
   default     = "dev"
 }

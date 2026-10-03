@@ -1,0 +1,4 @@
+app_name: terraformExampleCore
+route53:
+  domain_name: verihire.cc
+  ttl: 60

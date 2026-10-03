@@ -31,7 +31,7 @@ pip install .
 
 ### Important behavior to know up-front:
 - `tfwrap` is idempotent: it will check for an SSM Parameter containing backend metadata before bootstrapping resources. If the SSM parameter exists, the script uses it; otherwise it runs the bootstrap and writes the backend metadata to SSM for future runs.
-- The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.json` file to load.
+- The bootstrap and main run both use the same environment selection (`ENV` or `-e`) to determine which `properties.<ENV>.(json|yaml|yml)` file to load.
 
 ### Usage examples:
 
@@ -49,7 +49,7 @@ tfwrap apply
 ```
 
 # Note
-- The chosen environment must match one of the `properties.<ENV>.json` files in the repo (e.g. `dev`, `prod`). `tfwrap` will fail if it cannot find the matching properties file and `--app-name` is not provided.
+- The chosen environment must match exactly one of the `properties.<ENV>.json`, `properties.<ENV>.yaml` or `properties.<ENV>.yml` files in the repo (e.g. `dev`, `prod`). `tfwrap` will fail if it cannot find the matching properties file and `--app-name` is not provided. If more than one of those files exists for the same environment, that is an ambiguous config and `tfwrap` exits with an error.
 
 Stacks in this example
 - This repo now contains two logical stacks:
@@ -68,19 +68,27 @@ Why this repo exists
 
 How the bootstrap works (high level)
 - Run `./tfwrap` from the repo root. The script:
-  - Reads the `ENV` environment variable or `-e/--env` flag to determine which `properties.<ENV>.json` file to use; the bootstrap step uses the same environment selection so the same environment/region/account locking applies during bootstrap.
+  - Reads the `ENV` environment variable or `-e/--env` flag to determine which `properties.<ENV>.(json|yaml|yml)` file to use; the bootstrap step uses the same environment selection so the same environment/region/account locking applies during bootstrap.
   - Runs a small bootstrap Terraform workspace (in `bootstrap/`) that creates an S3 bucket used for Terraform remote state and locking.
   - Migrates local state into that newly-created S3 backend and then runs the normal plan/apply flow for the example stack.
   - Ensures `backend.tf` is created/managed safely during the migration to avoid accidentally clobbering other backends.
 
-Environment properties (`properties.<ENV>.json`)
-- This repo includes `properties.dev.json`, `properties.prod.json` (and the Terraform code reads `properties.${var.environment}.json`). These files lock a deployment to a specific environment, region, and account by providing the canonical properties the stack uses at plan/apply time.
+Environment properties (`properties.<ENV>.(json|yaml|yml)`)
+- This repo includes `properties.dev.yaml`, `properties.prod.yaml` in `core/` (and the Terraform code reads `properties.${var.environment}.(json|yaml|yml)`). The `frontend/` stack keeps its `properties.dev.json` / `properties.prod.json` files as the JSON backward-compatibility example. These files lock a deployment to a specific environment, region, and account by providing the canonical properties the stack uses at plan/apply time.
+- Exactly one file rule: for a given environment there must be exactly one of `properties.<ENV>.json`, `properties.<ENV>.yaml` or `properties.<ENV>.yml`. If more than one exists, that is an ambiguous config: `tfwrap` exits with an error listing the conflicting files before any AWS or Terraform call, and plain Terraform fails at plan time with the same "expected exactly one" error.
 - Why they exist:
-  - They capture environment-specific inputs (for example, `app_name`, region-specific settings, or deploy-time flags) in a single JSON file that Terraform and `tfwrap` read.
+  - They capture environment-specific inputs (for example, `app_name`, region-specific settings, or deploy-time flags) in a single file that Terraform and `tfwrap` read.
   - They allow running the exact same stack multiple times in the same account (e.g., two separate deployments of the same application) by giving each deployment its own properties file and therefore its own derived names and backend keys.
 - How to use them:
-  - Pass the environment to Terraform (the repository's `variables.tf` expects an `environment` variable that maps to `properties.<env>.json`).
-  - `tfwrap` reads `properties.${ENV}.json` (via `ENV` or `-e/--env`) to synthesize `APP_NAME` and other defaults if not explicitly supplied.
+  - Pass the environment to Terraform (the repository's `variables.tf` expects an `environment` variable that maps to `properties.<env>.(json|yaml|yml)`).
+  - `tfwrap` reads the single matching properties file (via `ENV` or `-e/--env`) to synthesize `APP_NAME` and other defaults if not explicitly supplied.
+- Formats: `.json` files are parsed with `json.load` by the CLI and `jsondecode` by Terraform. `.yaml` / `.yml` files are parsed with `yaml.safe_load` by the CLI and `yamldecode` by Terraform.
+- Quoting guidance:
+  - Quote `app_name` (and any string value) when it could be read as a YAML 1.1 boolean or as a number. Values such as `yes`, `no`, `on`, `off`, `true`, `false` and decimals like `1.5` are parsed differently by PyYAML (YAML 1.1) and Terraform `yamldecode` (YAML 1.2), so the CLI and Terraform would derive different values. Write `app_name: "yes"` or `app_name: "1.5"` to keep them a string.
+  - `tfwrap` rejects a boolean or float `app_name` with a "quote it" error, and coerces an integer `app_name` (e.g. `123`) to the string `"123"` so it matches Terraform. Quote any other YAML 1.1-ambiguous scalar that is meant to be a string.
+- Upgrading to 1.0.10:
+  - JSON users: nothing to do. Existing `properties.<ENV>.json` files keep working exactly as before.
+  - Users who switch an existing deployment from JSON to YAML with an auto-generated bootstrap from tfwrap <= 1.0.9: that bootstrap's `main.tf` still hardcodes the `.json` path and is not rewritten automatically. Run `tfwrap clean` once (and confirm the prompt); the next `tfwrap` run regenerates the bootstrap from the 1.0.10 template, after which the YAML file is read correctly. tfwrap logs a warning pointing at the clean step when it detects this situation.
 
 Per-repo backend vs a global backend (and CloudFormation comparison)
 - **Per-repo backend (this repo)**
